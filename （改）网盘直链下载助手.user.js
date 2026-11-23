@@ -6466,7 +6466,7 @@ button.downloadSubtitle:disabled {
 			}
 
 			// 获取选择的文件列表
-			const selects = this.getSelectedList();
+			const selects = await this.getSelectedList();
 			if (selects.length === 0) throw new Error("提示：<br/>请先勾选要下载的文件哦~");
 
 			$doc.find(".loading-popup .loading-title").html(`地址获取中`);
@@ -6528,7 +6528,7 @@ button.downloadSubtitle:disabled {
 			}];
 			base.showMainDialog(config.base.dom.method[temp.mode].title, download.generateDOM(), config.base.dom.method[temp.mode].footer);
 		},
-		getSelectedList() {
+		async getSelectedList() {
 			try {
 				let list = [];
 				// 3
@@ -6549,8 +6549,8 @@ button.downloadSubtitle:disabled {
 
 				return base.clone(list);
 			} catch (e) {
-				base.console.error(e);
-				return [];
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[百度网盘] 获取已勾选文件列表失败");
 			}
 		},
 		getShareSelectedList() {
@@ -6588,8 +6588,8 @@ button.downloadSubtitle:disabled {
 
 				return [];
 			} catch (e) {
-				base.console.error(e);
-				return [];
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[百度网盘][分享] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -6989,7 +6989,7 @@ button.downloadSubtitle:disabled {
 				const reactObj = base.findReact(reactDom, 1);
 				const props = reactObj.pendingProps;
 				if (props) {
-					const fileList = props.dataSource || [];
+					const fileList = props.dataSource;
 					const selectedKeys = props.selectedKeys.split(",");
 					fileList.forEach(val => {
 						if (selectedKeys.includes(val.fileId)) {
@@ -6999,8 +6999,8 @@ button.downloadSubtitle:disabled {
 				}
 				return base.clone(list);
 			} catch (e) {
-				base.console.error(e);
-				return [];
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[阿里云盘] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -7293,8 +7293,9 @@ button.downloadSubtitle:disabled {
 		},
 		getSelectedList() {
 			try {
-				return document.querySelector(".main_file_list").__vue__.selectList.map(val => val.item);
-			} catch {
+				let selects1 = document.querySelector(".main_file_list")?.__vue__?.selectList?.map?.(val => val.item);
+				if (selects1?.length) return selects1;
+
 				const vueDom = document.querySelector(".home-page")?.__vue__;
 				const fileList = vueDom._computedWatchers.fileList.value;
 				const dirList = vueDom._computedWatchers.dirList.value;
@@ -7307,6 +7308,9 @@ button.downloadSubtitle:disabled {
 					return selectedDirIndex.includes(i);
 				});
 				return [...selectFileList, ...selectDirList];
+			} catch (e) {
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[中国移动云盘] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -7512,9 +7516,13 @@ button.downloadSubtitle:disabled {
 		},
 		getSelectedList() {
 			try {
-				return document.querySelector(".c-file-list").__vue__.selectedList;
-			} catch {
-				return [document.querySelector(".info-detail").__vue__.fileDetail];
+				let selects1 = document.querySelector(".c-file-list")?.__vue__?.selectedList;
+				if (selects1?.length) return selects1;
+				let selects2 = document.querySelector(".info-detail")?.__vue__?.fileDetail;
+				if (selects2) return [selects2];
+			} catch (e) {
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[天翼云盘] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -7867,8 +7875,9 @@ button.downloadSubtitle:disabled {
 					if (domVue?.selected?.includes?.(domVue.info.id)) list.push(domVue.info);
 				}
 				return base.clone(list);
-			} catch {
-				return [];
+			} catch (e) {
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[迅雷云盘] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -8021,10 +8030,12 @@ button.downloadSubtitle:disabled {
 
 				if (res.data?.signedURL || res.data?.downloadUrl) {
 					return { index, downloadUrl: res.data?.signedURL ?? res.data?.downloadUrl };
-				} else if (res.code) {
+				} else if (res?.code != null) {
 					if (res.code == 9) return { index, downloadUrl: "获取下载地址失败，服务器说：页面验证过期了，刷新后再获取吧~" };
 					if (res.code == 103) return { index, downloadUrl: "获取下载地址失败，服务器说：后端 RPC 响应超时。脚本建议：再重新获取一次~" };
 					if (res.code == 207) return { index, downloadUrl: "获取下载地址失败，服务器说：分享者未打开免登录下载。请登录后下载~" };
+					if (res.code == 254) return { index, downloadUrl: "获取下载地址失败，服务器说：网页端非会员下载文件大小超过限制，请开通会员或使用客户端下载~" };
+					return { index, downloadUrl: `获取下载地址失败，${res.msg ? "服务器说：" + res.msg + "。" : "服务器说：" + res.code}` };
 				} else {
 					return { index, downloadUrl: `获取下载地址失败，${res.msg ? "服务器说：" + res.msg + "。" : "刷新后再试试吧~"}` };
 				}
@@ -8033,7 +8044,7 @@ button.downloadSubtitle:disabled {
 			}
 		},
 		async getLink() {
-			const selects = this.getSelectedList();
+			const selects = await this.getSelectedList().catch(() => []);
 			if (selects.length === 0) throw new Error("提示：<br/>请先勾选要下载的文件哦~");
 			if (selects.every(item => item.resType == 2)) throw new Error("提示：<br/>请打开文件夹后再勾选文件~");
 			if (temp.page === "home") {
@@ -8119,22 +8130,21 @@ button.downloadSubtitle:disabled {
 			}];
 			base.showMainDialog(config.base.dom.method[temp.mode].title, download.generateDOM(), config.base.dom.method[temp.mode].footer);
 		},
-		getSelectedList() {
+		async getSelectedList() {
 			try {
-				const selectedList = [];
+				let selectedList = [];
 				const reactDom = document.querySelector(`.swangpan-file-list__root[data-ui="file-list"]`);
 				const reactObj = base.findReact(reactDom);
 				const props = reactObj.pendingProps;
 				if (props) {
-					const fileList = props.dataSource || [];
-					const selectedKeys = props.selectedItems || [];
-					fileList.forEach(val => {
-						if (selectedKeys.includes(val.fileId)) selectedList.push({ ...val });
-					});
+					console.log(props);
+					const fileList = props.model.items;
+					selectedList = fileList.filter(v => v.selected).map(v => v.record);
 				}
 				return selectedList;
-			} catch {
-				return [];
+			} catch (e) {
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[光鸭云盘] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -8481,8 +8491,9 @@ button.downloadSubtitle:disabled {
 					});
 				}
 				return selectedList;
-			} catch {
-				return [];
+			} catch (e) {
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[夸克网盘] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -8756,8 +8767,9 @@ button.downloadSubtitle:disabled {
 					});
 				}
 				return selectedList;
-			} catch {
-				return [];
+			} catch (e) {
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[UC 网盘] 获取已勾选文件列表失败");
 			}
 		},
 		detectPage() {
@@ -9113,8 +9125,9 @@ button.downloadSubtitle:disabled {
 					if (props?.file?.S3KeyFlag) selectedList.push(props.file);
 				}
 				return selectedList;
-			} catch {
-				return [];
+			} catch (e) {
+				if (e instanceof Error) throw e;
+				throw new Error(e?.message || e || "[123 云盘] 获取已勾选文件列表失败");
 			}
 		},
 		addButton() {
@@ -9217,7 +9230,7 @@ button.downloadSubtitle:disabled {
 			const mountElem = $(`<${mount} class="${mount}" />`);
 			temp.mount = mountElem;
 
-			// unsafeWindow.LS = { temp, base };
+			unsafeWindow.SL = { temp, base };
 
 			base.waitForKeyElements(`html:not(:has(> .${mount})) head`, (element) => {
 				if ($(`.${mount}`).length > 0) return;
